@@ -1,0 +1,26 @@
+MEM_SIZE = 10000
+MIN_MEM_SIZE = 1000
+DISCOUNT = 0.92
+EPSILON_START = 1
+EPSILON_END = 0.05
+EPSILON_STOP = 300
+
+
+EPSILON = 0.02
+EPISODES = 50
+BATCH_SIZE = 128
+LEARNING_RATE = 2e-4
+
+model = nn.Sequential(
+    init_linear_layer(nn.Linear(20*10, 128), 'relu'),
+    nn.ReLU(),
+    init_linear_layer(nn.Linear(128, 64), 'relu'),
+    nn.ReLU(),
+    init_linear_layer(nn.Linear(64, 1), 'linear')
+)
+
+criterion = nn.MSELoss()
+optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+
+training_loss = []
+training_scores = []
