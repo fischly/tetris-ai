@@ -29,21 +29,40 @@ class DQNModel():
             torch.nn.init.xavier_normal_(m.weight, nn.init.calculate_gain(method))
             torch.nn.init.constant_(m.bias, 0)
             return m
-                
+        
         model = nn.Sequential(
-            init_linear_layer(nn.Linear(20*10, 128), 'relu'),
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=5),
             nn.ReLU(),
-            init_linear_layer(nn.Linear(128, 64), 'relu'),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3),
             nn.ReLU(),
-            init_linear_layer(nn.Linear(64, 32), 'relu'),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3),
             nn.ReLU(),
-            init_linear_layer(nn.Linear(32, 1), 'linear')
+            nn.MaxPool2d(kernel_size=2),
+            
+            nn.Flatten(),
+            
+            init_linear_layer(nn.Linear(1*6*64, 256), 'relu'),
+            nn.ReLU(),
+            init_linear_layer(nn.Linear(256, 128), 'relu'),
+            nn.ReLU(),
+            init_linear_layer(nn.Linear(128, 1), 'linear')
         )
+        
+        # model = nn.Sequential(
+        #     nn.Flatten(),
+        #     init_linear_layer(nn.Linear(20*10, 128), 'relu'),
+        #     nn.ReLU(),
+        #     init_linear_layer(nn.Linear(128, 64), 'relu'),
+        #     nn.ReLU(),
+        #     init_linear_layer(nn.Linear(64, 32), 'relu'),
+        #     nn.ReLU(),
+        #     init_linear_layer(nn.Linear(32, 1), 'linear')
+        # )
         
         return model
     
     def update_target(self):
-        for param, target_param in zip(self.target_model.parameters(), self.model.parameters()):
+        for param, target_param in zip(self.model.parameters(), self.target_model.parameters()):
             target_param.data.copy_(param)
     
     def step(self):
