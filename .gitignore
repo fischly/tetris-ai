@@ -140,3 +140,8 @@ dmypy.json
 
 # vim stuff
 *.swp
+
+
+# models
+models/
+images/
