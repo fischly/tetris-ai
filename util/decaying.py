@@ -32,7 +32,7 @@ class DecayingLinear(DecayingFunc):
     def __init__(self, start, end, duration):
         step = (end - start) / duration
         
-        f = lambda x: start + step * x if x < duration else end
+        f = lambda x: (start + step * x) if x < duration else end
         
         super().__init__(f)
     
