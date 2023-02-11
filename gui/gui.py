@@ -25,6 +25,9 @@ colors = [color.PURPLE, color.ORANGE, color.BLUE, color.YELLOW, color.CYAN, colo
 # derived constants
 FIELD_BACKGROUND_POS = (WIN_SIZE[0] / 2 - (CELL_SIZE * 10 + FIELD_UPPER_MARGIN * 2) / 2, 0)
 QUEUE_BACKGROUND_POS = (WIN_SIZE[0] / 2 + (CELL_SIZE * 10 + FIELD_UPPER_MARGIN * 2) / 2 + FIELD_UPPER_MARGIN, FIELD_UPPER_MARGIN)
+QUEUE_BACKGROUND_SIZE = (CELL_SIZE * 4 + CELL_GAP + FIELD_UPPER_MARGIN * 2, (CELL_SIZE * 2 + CELL_GAP) * 5 + 6 * FIELD_UPPER_MARGIN)
+HOLD_BACKGROUND_POS  = (WIN_SIZE[0] / 2 - (CELL_SIZE * 10 + FIELD_UPPER_MARGIN * 2) / 2 - FIELD_UPPER_MARGIN - QUEUE_BACKGROUND_SIZE[0], FIELD_UPPER_MARGIN)
+HOLD_BACKGROUND_SIZE = (QUEUE_BACKGROUND_SIZE[0], (CELL_SIZE * 2 + CELL_GAP) + FIELD_UPPER_MARGIN * 2)
 
 class Gui:
     def __init__(self, shape=(20, 10), sleep=66):
@@ -42,9 +45,13 @@ class Gui:
         self.grid_background.set_alpha(FIELD_BACKGROUND_ALPHA)
         self.grid_background.fill((0, 0, 0))
         
-        self.queue_background = pygame.Surface((CELL_SIZE * 4 + CELL_GAP + FIELD_UPPER_MARGIN * 2, (CELL_SIZE * 2 + CELL_GAP) * 5 + 6 * FIELD_UPPER_MARGIN))
+        self.queue_background = pygame.Surface(QUEUE_BACKGROUND_SIZE)
         self.queue_background.set_alpha(FIELD_BACKGROUND_ALPHA)
         self.queue_background.fill((0, 0, 0))
+        
+        self.hold_background = pygame.Surface(HOLD_BACKGROUND_SIZE)
+        self.hold_background.set_alpha(FIELD_BACKGROUND_ALPHA)
+        self.hold_background.fill((0, 0, 0))
         
         self.sound_quad = pygame.mixer.Sound('gui/quad.wav')
         self.sound_tspin = pygame.mixer.Sound('gui/tspin.wav')
@@ -97,14 +104,19 @@ class Gui:
         self._render_piece(piece, (px, py))
     
     def render_queue(self, queue):
-        
         for idx, piece in enumerate(queue):
             px = QUEUE_BACKGROUND_POS[1] + FIELD_UPPER_MARGIN * (idx + 1) + CELL_SIZE * 2 * idx
             py = QUEUE_BACKGROUND_POS[0] + FIELD_UPPER_MARGIN
             
             self._render_piece(Piece(piece), (px, py))
             
-    def draw(self, field, piece, queue):
+    def render_hold(self, hold):
+        px = HOLD_BACKGROUND_POS[1] + FIELD_UPPER_MARGIN
+        py = HOLD_BACKGROUND_POS[0] + FIELD_UPPER_MARGIN
+        
+        self._render_piece(Piece(hold), (px, py))
+            
+    def draw(self, field, piece, queue, hold):
         try:
             pygame.time.delay(self.sleep)
         except KeyboardInterrupt:
@@ -115,9 +127,12 @@ class Gui:
         
         self.win.blit(self.grid_background, FIELD_BACKGROUND_POS)
         self.win.blit(self.queue_background, QUEUE_BACKGROUND_POS)
+        self.win.blit(self.hold_background, HOLD_BACKGROUND_POS)
         
         self.render_field(field)
         self.render_queue(queue)
+        if hold is not None:
+            self.render_hold(hold)
         self.render_piece(piece)
 
         pygame.display.update()
