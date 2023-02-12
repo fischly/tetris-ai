@@ -25,6 +25,11 @@ class TetrisEnvRendered():
         self.tspins = 0
         self.all_clears = 0
         
+        # amount of lines cleared by last piece
+        self.last_move_lines_cleared = 0
+        # score done by last piece
+        self.last_move_score = 0
+        
         
     def get_next_states(self, use_hold=False):
         '''Returns all possible follow states by placing the current piece at (nearly) all possible positions.'''
@@ -87,7 +92,8 @@ class TetrisEnvRendered():
             
         self.moves += 1
         
-
+        self.last_move_lines_cleared = cleared_rows
+        self.last_move_score = next_score
         
     def hold(self):
         if self.hold_piece is not None:

@@ -222,31 +222,50 @@ class Field():
         self.field_data = np.zeros((self.height, self.width))
         
     def get_number_of_holes(self):
-        
         holes = []
         
-        for ci, column in enumerate(self.field_data.T):
+        for column_index, column in enumerate(self.field_data.T):
             top = -1
             # print(f'column {ci}')
             
-            for i in range(self.height):
+            for h in range(self.height):
                 # print(f'   row {i}, top = {top}')
                 if top == -1:
-                    if column[i] == 0:
+                    if column[h] == 0:
                         continue
                     else:
-                        top = i
+                        top = h
                 else:
-                    if column[i] == 0:
-                        holes.append((i, ci))
-        return holes
-                
-                
+                    if column[h] == 0:
+                        holes.append((h, column_index))
+        return len(holes)        
+    
+    
+    def get_number_of_connected_holes(self):
+        holes = []
+        
+        for column_index, column in enumerate(self.field_data.T):
+            top = -1
             
+            for h in range(self.height):
+                if top == -1:
+                    if column[h] == 0:
+                        continue
+                    else:
+                        top = h
+                else:
+                    next_cell = column[h + 1] if h < self.height - 1 else 1
+                    if column[h] == 0 and next_cell == 1:
+                        holes.append((h, column_index))
+
+        return len(holes)
+    
+    
     
     def get_column_heights(self):
         '''Calculates the height of every column, maximum height and height difference between columns.'''
         max_height = 0
+        min_height = 30
         heights = []
         height_diffs = []
         
@@ -266,14 +285,183 @@ class Field():
             
             if h > max_height:
                 max_height = h
+            if h < min_height:
+                min_height = h
                 
             heights.append(h)
         
-        return (heights, max_height, height_diffs)
+        return (heights, max_height, min_height, height_diffs)
         
+    def get_wells(self):
+        wells = []
         
+        for column_index, column in enumerate(self.field_data.T):
+            left_column = self.field_data.T[column_index - 1] if column_index >= 1 else np.ones(self.height)
+            right_column = self.field_data.T[column_index + 1] if column_index < self.width - 1 else np.ones(self.height)
+            
+            
+            well_depth = 0
+            # for h in range(self.height - 1, -1, -1):
+            for h in range(self.height):
+                if left_column[h] == 1 and column[h] == 0 and right_column[h] == 1:
+                    well_depth += 1
+                elif column[h] == 1:
+                    break
+                    
+            if well_depth > 0:
+                wells.append((well_depth, column_index))
+    
+        return wells
+    
+    def get_transitions(self, row=True):
+        counter = 0
+        
+        for block_idx, block in enumerate(self.field_data if row else self.field_data.T):
+            counter2 = 0
+            last_cell = 1
+            
+            for cell in block:
+                if last_cell != cell:
+                    counter += 1
+                    counter2 += 1
+                last_cell = cell
+            
+            if block[-1] == 0:
+                counter += 1
+                counter2 += 1
+                    
+        return counter
+    
+    def get_row_transitions(self):
+        return self.get_transitions(True)
+    
+    def get_column_transitions(self):
+        return self.get_transitions(False)
+    
+    
+    def get_number_of_occupied_cells(self):
+        return np.sum(self.field_data)
+    
+    def get_number_of_occupied_cells_weighted(self):
+        weighted_field = np.concatenate([(np.arange(20, 0, -1)).reshape((1,20)) for _ in range(10)]).T
+        weighted_field = np.where(self.field_data == 1, weighted_field, 0)
+        
+        return np.sum(weighted_field)
+    
+    def get_heuristics(self):
+        wells = self.get_wells()
+        well_depths = map(lambda w: w[0], wells)
+        
+        col_heights, highest_pile, shortest_pile, col_height_diffs = self.get_column_heights()
+        max_height_diff = highest_pile - shortest_pile
+        sum_height_diffs = np.sum(np.abs(col_height_diffs))
+        number_of_holes = self.get_number_of_holes()
+        number_of_holes_connected = self.get_number_of_connected_holes()
+        max_well_depth = max(well_depths)
+        sum_of_wells = sum(well_depths)
+        blocks = self.get_number_of_occupied_cells()
+        weighted_blocks = self.get_number_of_occupied_cells_weighted()
+        row_transitions = self.get_row_transitions()
+        column_transitions = self.get_column_transitions()
+        
+        return [
+            highest_pile,
+            number_of_holes,
+            number_of_holes_connected,
+            max_height_diff,
+            max_well_depth,
+            sum_of_wells,
+            blocks,
+            weighted_blocks,
+            row_transitions,
+            column_transitions,
+            sum_height_diffs
+        ]
+                             
+                             
     def __str__(self):
         return str(self.field_data)
     
     def __repr__(self):
         return self.__str__()
+    
+
+if __name__ == '__main__':
+    f = Field()
+#     # --- t-spin triple ---
+#     f.field_data[14,:5] = 1
+
+#     f.field_data[15,:4] = 1
+
+#     f.field_data[16,:4] = 1
+#     f.field_data[16,5:] = 1
+
+#     f.field_data[17,0:4] = 1
+#     f.field_data[17,6:] = 1
+
+#     f.field_data[18:, :] = 1
+#     f.field_data[18,4] = 0
+
+
+#     # --- t-spin double ---
+#     f.field_data[17,:3] = 1
+#     f.field_data[17,5:] = 1
+
+#     f.field_data[18,0:3] = 1
+#     f.field_data[18,6:] = 1
+
+#     f.field_data[19:, :] = 1
+#     f.field_data[19,4] = 0
+
+    # --- t-spin double ---
+    # f.field_data[17:20, 1:] = 1
+    # f.field_data[16,1:3] = 1
+    # f.field_data[16,4:6] = 1
+    # f.field_data[16,9] = 1
+    # f.field_data[15,4:6] = 1
+    # f.field_data[15,9] = 1
+    # f.field_data[14,4] = 1
+    # f.field_data[14,9] = 1
+    # f.field_data[13,4] = 1
+    
+    f.field_data[16:,1] = 1
+    f.field_data[16:,2] = 1
+    f.field_data[16:,3] = 1
+    f.field_data[17:,4] = 1
+    f.field_data[13:,5] = 1
+    f.field_data[15:,6] = 1
+    f.field_data[17:,7] = 1
+    f.field_data[14:,8] = 1
+    f.field_data[16:,9] = 1
+    
+
+    f._print_board(f.field_data)
+    
+    print('COLUMN HEIGHTS:')
+    print(f.get_column_heights())
+    print()
+    print('WELLS:')
+    print(f.get_wells())
+    print()
+    print('NUMBER OF HOLES: ', f.get_number_of_holes())
+    print('NUMBER OF CONNECTED HOLES: ', f.get_number_of_connected_holes())
+    print('NUMEBR OF CELLS: ', f.get_number_of_occupied_cells())
+    print('NUMEBR OF WEIGHTED CELLS: ', f.get_number_of_occupied_cells_weighted())
+    print('ROW TRANSITIONS: ', f.get_row_transitions())
+    print('COLUMN TRANSITIONS: ', f.get_column_transitions())
+    
+    print(f.get_heuristics())
+    
+    # p = Piece(0, [0,0])
+
+    # f._print_board((f._add_piece_to_board(p, 0, [9,0])))
+
+    # fs, scores = f.get_follow_states(p)
+
+    # print(scores)
+
+    # # for st, sc in zip(fs, scores):
+    # #     f._print_board(st)
+    # #     print(sc)
+    # #     print()
+
