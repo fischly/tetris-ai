@@ -24,6 +24,8 @@ class TetrisEnvRendered():
         self.clears = [0, 0, 0, 0]
         self.tspins = 0
         self.all_clears = 0
+        self.max_combo = 0
+        self.max_btb = 0
         
         # amount of lines cleared by last piece
         self.last_move_lines_cleared = 0
@@ -40,12 +42,19 @@ class TetrisEnvRendered():
         else:
             piece_to_use = self.current_piece
         
-        next_states, next_states_pretty, next_clears, next_moves = self.field.get_follow_states(Piece(piece_to_use))
+        next_states, next_states_pretty, next_clears, next_heuristics, next_moves = self.field.get_follow_states(Piece(piece_to_use))
 
         scores = [SCORING['GAME_OVER'] if clear[0] == -1 else self._calculate_score(*clear, self.current_combo, self.current_btb) for clear in next_clears]
         dones = [clear[0] == -1 for clear in next_clears]
         
-        return (next_states, next_states_pretty, scores, next_clears, dones, next_moves)
+        # add environment specific heuristics
+        env_heuristics = self.get_heuristics()
+        
+        combined_heuris = np.zeros((next_heuristics.shape[0], 25))
+        combined_heuris[:, :next_heuristics.shape[1]] = next_heuristics
+        combined_heuris[:, next_heuristics.shape[1]:] = np.broadcast_to(env_heuristics, (next_heuristics.shape[0], len(env_heuristics)))
+        
+        return (next_states, next_states_pretty, scores, next_clears, combined_heuris, dones, next_moves)
       
     
     def get_current_state(self):
@@ -89,6 +98,11 @@ class TetrisEnvRendered():
             self.tspins += 1
         if is_all_clear:
             self.all_clears += 1
+            
+        if self.current_btb > self.max_btb:
+            self.max_btb = self.current_btb
+        if self.current_combo > self.max_combo:
+            self.current_combo = self.max_combo
             
         self.moves += 1
         
@@ -138,3 +152,28 @@ class TetrisEnvRendered():
         self.tspins = 0
         self.all_clears = 0
         
+    
+    def get_heuristics(self):
+        
+        I_pieces, T_pieces = self.get_number_of_pieces()
+        
+        return [
+            self.last_move_lines_cleared,
+            self.last_move_score,
+            I_pieces,
+            T_pieces
+        ]
+    
+    def get_number_of_pieces(self):
+        pieces = self.bag.peek_pieces(5)
+        
+        I_counter = 0
+        T_counter = 0
+        
+        for piece in pieces:
+            if piece == 0:
+                T_counter += 1
+            elif piece == 4:
+                I_counter += 1
+        
+        return (I_counter, T_counter)

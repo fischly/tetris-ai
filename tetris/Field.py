@@ -83,6 +83,7 @@ class Field():
         """ Generates all possible next states that follow from the current state of the field. """
         next_states = []
         next_scores = []
+        next_heuris = []
         
         # rotate the piece in all possible directions
         for rot in range(piece.pdata.num_rot):            
@@ -94,10 +95,10 @@ class Field():
                 dropped_pos = [px, py]
                 
                 # add the dropped piece as a new state
-                self._append_state(next_states, next_scores, piece, rot, dropped_pos)
+                self._append_state(next_states, next_scores, next_heuris, piece, rot, dropped_pos)
                 
                 # try kick/flip the piece with all possible rotations
-                self._kick_expansion(piece, rot, dropped_pos, next_states, next_scores)
+                self._kick_expansion(piece, rot, dropped_pos, next_states, next_scores, next_heuris)
                 
                 
                 # move the piece left/right and try to kick/flip it (enables t-spin triples, for example)
@@ -107,7 +108,7 @@ class Field():
                         break
                     else:
                         left += 1
-                        self._kick_expansion(piece, rot, [px, py - left], next_states, next_scores)
+                        self._kick_expansion(piece, rot, [px, py - left], next_states, next_scores, next_heuris)
                 
                 right = 1
                 while True:
@@ -115,17 +116,18 @@ class Field():
                         break
                     else:
                         right += 1
-                        self._kick_expansion(piece, rot, [px, py + right], next_states, next_scores)
+                        self._kick_expansion(piece, rot, [px, py + right], next_states, next_scores, next_heuris)
         
         # remove duplicates
         next_states, next_states_indices = np.unique(np.array(next_states).reshape(len(next_states), -1), axis=0, return_index=True)
         next_states = next_states.reshape((-1, 20, 10))
         
         next_scores = np.take(np.array(next_scores, dtype=object), next_states_indices, axis=0)
+        next_heuris = np.take(np.array(next_heuris, dtype=object), next_states_indices, axis=0)
         
-        return (next_states, next_scores)
+        return (next_states, next_scores, next_heuris)
     
-    def _kick_expansion(self, piece, rot, dropped_pos, states, scores):
+    def _kick_expansion(self, piece, rot, dropped_pos, states, scores, heuristics):
         (px, py) = self._extract_piece_info(piece, rot, dropped_pos)
 
         for kick_rot in range(piece.pdata.num_rot):
@@ -135,15 +137,17 @@ class Field():
                 # possible state
                 dropped_px = self.drop_piece(piece, kick_result[2], [kick_result[0], kick_result[1]])
                 
-                self._append_state(states, scores, piece, kick_result[2], [dropped_px, kick_result[1]])
+                self._append_state(states, scores, heuristics, piece, kick_result[2], [dropped_px, kick_result[1]])
     
     
-    def _append_state(self, states, scores, piece, rot, pos=None):
+    def _append_state(self, states, scores, heuristics, piece, rot, pos=None):
         new_state = self._add_piece_to_board(piece, rot, pos)
         score = self.handle_clears(new_state, piece, rot, pos)
+        new_heuristics = self.get_heuristics(new_state)
         
         states.append(new_state)
         scores.append(score)
+        heuristics.append(new_heuristics)
         
         # print('Score:', score)
         # self._print_board(new_state)
@@ -221,10 +225,12 @@ class Field():
     def reset(self):
         self.field_data = np.zeros((self.height, self.width))
         
-    def get_number_of_holes(self):
+    def get_number_of_holes(self, target=None):
+        target = target if target is not None else self.field_data 
+        
         holes = []
         
-        for column_index, column in enumerate(self.field_data.T):
+        for column_index, column in enumerate(target.T):
             top = -1
             # print(f'column {ci}')
             
@@ -241,10 +247,12 @@ class Field():
         return len(holes)        
     
     
-    def get_number_of_connected_holes(self):
+    def get_number_of_connected_holes(self, target=None):
+        target = target if target is not None else self.field_data 
+        
         holes = []
         
-        for column_index, column in enumerate(self.field_data.T):
+        for column_index, column in enumerate(target.T):
             top = -1
             
             for h in range(self.height):
@@ -262,8 +270,10 @@ class Field():
     
     
     
-    def get_column_heights(self):
+    def get_column_heights(self, target=None):
         '''Calculates the height of every column, maximum height and height difference between columns.'''
+        target = target if target is not None else self.field_data 
+        
         max_height = 0
         min_height = 30
         heights = []
@@ -271,7 +281,7 @@ class Field():
         
         last_height = -1
         
-        for column in self.field_data.T:
+        for column in target.T:
             h = 0
             while h < self.height and column[h] == 0:
                 h += 1
@@ -292,12 +302,15 @@ class Field():
         
         return (heights, max_height, min_height, height_diffs)
         
-    def get_wells(self):
+    def get_wells(self, target=None):
+        target = target if target is not None else self.field_data 
+        target_trans = target.T
+        
         wells = []
         
-        for column_index, column in enumerate(self.field_data.T):
-            left_column = self.field_data.T[column_index - 1] if column_index >= 1 else np.ones(self.height)
-            right_column = self.field_data.T[column_index + 1] if column_index < self.width - 1 else np.ones(self.height)
+        for column_index, column in enumerate(target_trans):
+            left_column = target_trans[column_index - 1] if column_index >= 1 else np.ones(self.height)
+            right_column = target_trans[column_index + 1] if column_index < self.width - 1 else np.ones(self.height)
             
             
             well_depth = 0
@@ -308,15 +321,17 @@ class Field():
                 elif column[h] == 1:
                     break
                     
-            if well_depth > 0:
-                wells.append((well_depth, column_index))
+            wells.append(well_depth)
     
         return wells
+            
     
-    def get_transitions(self, row=True):
+    def get_transitions(self, row=True, target=None):
+        target = target if target is not None else self.field_data 
+        
         counter = 0
         
-        for block_idx, block in enumerate(self.field_data if row else self.field_data.T):
+        for block_idx, block in enumerate(target if row else target.T):
             counter2 = 0
             last_cell = 1
             
@@ -332,37 +347,39 @@ class Field():
                     
         return counter
     
-    def get_row_transitions(self):
-        return self.get_transitions(True)
+    def get_row_transitions(self, target=None):
+        return self.get_transitions(True, target)
     
-    def get_column_transitions(self):
-        return self.get_transitions(False)
+    def get_column_transitions(self, target=None):
+        return self.get_transitions(False, target)
     
     
-    def get_number_of_occupied_cells(self):
-        return np.sum(self.field_data)
+    def get_number_of_occupied_cells(self, target=None):
+        return np.sum(target if target is not None else self.field_data)
     
-    def get_number_of_occupied_cells_weighted(self):
+    def get_number_of_occupied_cells_weighted(self, target=None):
+        target = target if target is not None else self.field_data 
+        
         weighted_field = np.concatenate([(np.arange(20, 0, -1)).reshape((1,20)) for _ in range(10)]).T
-        weighted_field = np.where(self.field_data == 1, weighted_field, 0)
+        weighted_field = np.where(target == 1, weighted_field, 0)
         
         return np.sum(weighted_field)
     
-    def get_heuristics(self):
-        wells = self.get_wells()
-        well_depths = map(lambda w: w[0], wells)
+    def get_heuristics(self, target=None):
+        wells = self.get_wells(target)
         
-        col_heights, highest_pile, shortest_pile, col_height_diffs = self.get_column_heights()
+        col_heights, highest_pile, shortest_pile, col_height_diffs = self.get_column_heights(target)
         max_height_diff = highest_pile - shortest_pile
         sum_height_diffs = np.sum(np.abs(col_height_diffs))
-        number_of_holes = self.get_number_of_holes()
-        number_of_holes_connected = self.get_number_of_connected_holes()
-        max_well_depth = max(well_depths)
-        sum_of_wells = sum(well_depths)
-        blocks = self.get_number_of_occupied_cells()
-        weighted_blocks = self.get_number_of_occupied_cells_weighted()
-        row_transitions = self.get_row_transitions()
-        column_transitions = self.get_column_transitions()
+        number_of_holes = self.get_number_of_holes(target)
+        number_of_holes_connected = self.get_number_of_connected_holes(target)
+        max_well_depth = max(wells)
+        sum_of_wells = sum(wells)
+        blocks = self.get_number_of_occupied_cells(target)
+        weighted_blocks = self.get_number_of_occupied_cells_weighted(target)
+        row_transitions = self.get_row_transitions(target)
+        column_transitions = self.get_column_transitions(target)
+        
         
         return [
             highest_pile,
@@ -376,7 +393,7 @@ class Field():
             row_transitions,
             column_transitions,
             sum_height_diffs
-        ]
+        ] # + wells
                              
                              
     def __str__(self):
@@ -413,7 +430,8 @@ if __name__ == '__main__':
 #     f.field_data[19:, :] = 1
 #     f.field_data[19,4] = 0
 
-    # --- t-spin double ---
+
+    # # --- paper example 1 ---
     # f.field_data[17:20, 1:] = 1
     # f.field_data[16,1:3] = 1
     # f.field_data[16,4:6] = 1
@@ -424,6 +442,7 @@ if __name__ == '__main__':
     # f.field_data[14,9] = 1
     # f.field_data[13,4] = 1
     
+    # --- paper example 1 ---
     f.field_data[16:,1] = 1
     f.field_data[16:,2] = 1
     f.field_data[16:,3] = 1

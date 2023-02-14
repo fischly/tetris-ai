@@ -91,6 +91,7 @@ class FieldRendered():
         next_states = []
         next_states_pretty = []
         next_scores = []
+        next_heuris = []
         next_moves = []
         
         # rotate the piece in all possible directions
@@ -108,10 +109,10 @@ class FieldRendered():
                 moves_done = rots_done + ['ml' if moves_done < 0 else 'mr'] * abs(moves_done) + ['sd'] * px
                                 
                 # add the dropped piece as a new state
-                self._append_state(next_states, next_states_pretty, next_scores, next_moves, piece, rot, dropped_pos, moves_done.copy())
+                self._append_state(next_states, next_states_pretty, next_scores, next_heuris, next_moves, piece, rot, dropped_pos, moves_done.copy())
                 
                 # try kick/flip the piece with all possible rotations
-                self._kick_expansion(piece, rot, dropped_pos, moves_done.copy(), next_states, next_states_pretty, next_scores, next_moves)
+                self._kick_expansion(piece, rot, dropped_pos, moves_done.copy(), next_states, next_states_pretty, next_scores, next_heuris, next_moves)
                 
                 
                 # move the piece left/right and try to kick/flip it (enables t-spin triples, for example)
@@ -121,7 +122,7 @@ class FieldRendered():
                         break
                     else:
                         left += 1
-                        self._kick_expansion(piece, rot, [px, py - left], moves_done + ['ml'] * (left - 1), next_states, next_states_pretty, next_scores, next_moves)
+                        self._kick_expansion(piece, rot, [px, py - left], moves_done + ['ml'] * (left - 1), next_states, next_states_pretty, next_scores, next_heuris, next_moves)
                 
                 right = 1
                 while True:
@@ -129,7 +130,7 @@ class FieldRendered():
                         break
                     else:
                         right += 1
-                        self._kick_expansion(piece, rot, [px, py + right], moves_done + ['mr'] * (right - 1), next_states, next_states_pretty, next_scores, next_moves)
+                        self._kick_expansion(piece, rot, [px, py + right], moves_done + ['mr'] * (right - 1), next_states, next_states_pretty, next_scores, next_heuris, next_moves)
         
         # remove duplicates
         next_states, next_states_indices = np.unique(np.array(next_states).reshape(len(next_states), -1), axis=0, return_index=True)
@@ -137,11 +138,12 @@ class FieldRendered():
         
         next_states_pretty = np.take(np.array(next_states_pretty, dtype=object), next_states_indices, axis=0)
         next_scores = np.take(np.array(next_scores, dtype=object), next_states_indices, axis=0)
+        next_heuris = np.take(np.array(next_heuris, dtype=object), next_states_indices, axis=0)
         next_moves = np.take(np.array(next_moves, dtype=object), next_states_indices, axis=0)
         
-        return (next_states, next_states_pretty, next_scores, next_moves)
+        return (next_states, next_states_pretty, next_scores, next_heuris, next_moves)
     
-    def _kick_expansion(self, piece, rot, dropped_pos, moves, states, states_pretty, scores, movelist):
+    def _kick_expansion(self, piece, rot, dropped_pos, moves, states, states_pretty, scores, heuristics, movelist):
         (px, py) = self._extract_piece_info(piece, rot, dropped_pos)
 
         for kick_rot in range(piece.pdata.num_rot):
@@ -156,17 +158,19 @@ class FieldRendered():
                 dropped_px = self.drop_piece(piece, kick_result[2], [kick_result[0], kick_result[1]])
                 dropped_px_diff = dropped_px - kick_result[0]
                 
-                self._append_state(states, states_pretty, scores, movelist, piece, kick_result[2], [dropped_px, kick_result[1]], moves + [','.join(kick_moves)] +  ['sd'] * dropped_px_diff)
+                self._append_state(states, states_pretty, scores, heuristics, movelist, piece, kick_result[2], [dropped_px, kick_result[1]], moves + [','.join(kick_moves)] +  ['sd'] * dropped_px_diff)
     
     
-    def _append_state(self, states, states_pretty, scores, movelist, piece, rot, pos=None, moves=None):
+    def _append_state(self, states, states_pretty, scores, heuristics, movelist, piece, rot, pos=None, moves=None):
         new_state = self._add_piece_to_board(piece, rot, pos)
         new_state_pretty = self._add_piece_to_board_pretty(piece, rot, pos)
         score = self.handle_clears(new_state, new_state_pretty, piece, rot, pos)
+        new_heuristics = self.get_heuristics(new_state)
         
         states.append(new_state)
         states_pretty.append(new_state_pretty)
         scores.append(score)
+        heuristics.append(new_heuristics)
         movelist.append(moves)
         
         # print('Score:', score)
@@ -261,38 +265,63 @@ class FieldRendered():
         self.field_data = np.zeros((self.height, self.width))
         self.field_data_pretty = np.ones((self.height, self.width)) * -1
         
-    def get_number_of_holes(self):
+    def get_number_of_holes(self, target=None):
+        target = target if target is not None else self.field_data 
         
         holes = []
         
-        for ci, column in enumerate(self.field_data.T):
+        for column_index, column in enumerate(target.T):
             top = -1
             # print(f'column {ci}')
             
-            for i in range(self.height):
+            for h in range(self.height):
                 # print(f'   row {i}, top = {top}')
                 if top == -1:
-                    if column[i] == 0:
+                    if column[h] == 0:
                         continue
                     else:
-                        top = i
+                        top = h
                 else:
-                    if column[i] == 0:
-                        holes.append((i, ci))
-        return holes
-                
-                
-            
+                    if column[h] == 0:
+                        holes.append((h, column_index))
+        return len(holes)        
     
-    def get_column_heights(self):
+    
+    def get_number_of_connected_holes(self, target=None):
+        target = target if target is not None else self.field_data 
+        
+        holes = []
+        
+        for column_index, column in enumerate(target.T):
+            top = -1
+            
+            for h in range(self.height):
+                if top == -1:
+                    if column[h] == 0:
+                        continue
+                    else:
+                        top = h
+                else:
+                    next_cell = column[h + 1] if h < self.height - 1 else 1
+                    if column[h] == 0 and next_cell == 1:
+                        holes.append((h, column_index))
+
+        return len(holes)
+    
+    
+    
+    def get_column_heights(self, target=None):
         '''Calculates the height of every column, maximum height and height difference between columns.'''
+        target = target if target is not None else self.field_data 
+        
         max_height = 0
+        min_height = 30
         heights = []
         height_diffs = []
         
         last_height = -1
         
-        for column in self.field_data.T:
+        for column in target.T:
             h = 0
             while h < self.height and column[h] == 0:
                 h += 1
@@ -306,10 +335,104 @@ class FieldRendered():
             
             if h > max_height:
                 max_height = h
+            if h < min_height:
+                min_height = h
                 
             heights.append(h)
         
-        return (heights, max_height, height_diffs)
+        return (heights, max_height, min_height, height_diffs)
+        
+    def get_wells(self, target=None):
+        target = target if target is not None else self.field_data 
+        target_trans = target.T
+        
+        wells = []
+        
+        for column_index, column in enumerate(target_trans):
+            left_column = target_trans[column_index - 1] if column_index >= 1 else np.ones(self.height)
+            right_column = target_trans[column_index + 1] if column_index < self.width - 1 else np.ones(self.height)
+            
+            
+            well_depth = 0
+            # for h in range(self.height - 1, -1, -1):
+            for h in range(self.height):
+                if left_column[h] == 1 and column[h] == 0 and right_column[h] == 1:
+                    well_depth += 1
+                elif column[h] == 1:
+                    break
+                    
+            wells.append(well_depth)
+    
+        return wells
+    
+    def get_transitions(self, row=True, target=None):
+        target = target if target is not None else self.field_data 
+        
+        counter = 0
+        
+        for block_idx, block in enumerate(target if row else target.T):
+            counter2 = 0
+            last_cell = 1
+            
+            for cell in block:
+                if last_cell != cell:
+                    counter += 1
+                    counter2 += 1
+                last_cell = cell
+            
+            if block[-1] == 0:
+                counter += 1
+                counter2 += 1
+                    
+        return counter
+    
+    def get_row_transitions(self, target=None):
+        return self.get_transitions(True, target)
+    
+    def get_column_transitions(self, target=None):
+        return self.get_transitions(False, target)
+    
+    
+    def get_number_of_occupied_cells(self, target=None):
+        return np.sum(target if target is not None else self.field_data)
+    
+    def get_number_of_occupied_cells_weighted(self, target=None):
+        target = target if target is not None else self.field_data 
+        
+        weighted_field = np.concatenate([(np.arange(20, 0, -1)).reshape((1,20)) for _ in range(10)]).T
+        weighted_field = np.where(target == 1, weighted_field, 0)
+        
+        return np.sum(weighted_field)
+    
+    def get_heuristics(self, target=None):
+        wells = self.get_wells(target)
+        
+        col_heights, highest_pile, shortest_pile, col_height_diffs = self.get_column_heights(target)
+        max_height_diff = highest_pile - shortest_pile
+        sum_height_diffs = np.sum(np.abs(col_height_diffs))
+        number_of_holes = self.get_number_of_holes(target)
+        number_of_holes_connected = self.get_number_of_connected_holes(target)
+        max_well_depth = max(wells)
+        sum_of_wells = sum(wells)
+        blocks = self.get_number_of_occupied_cells(target)
+        weighted_blocks = self.get_number_of_occupied_cells_weighted(target)
+        row_transitions = self.get_row_transitions(target)
+        column_transitions = self.get_column_transitions(target)
+        
+        return [
+            highest_pile,
+            number_of_holes,
+            number_of_holes_connected,
+            max_height_diff,
+            max_well_depth,
+            sum_of_wells,
+            blocks,
+            weighted_blocks,
+            row_transitions,
+            column_transitions,
+            sum_height_diffs
+        ] + wells
+            
         
         
     def __str__(self):

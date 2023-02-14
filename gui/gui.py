@@ -19,11 +19,12 @@ CELL_GAP = 2
 
 FONT_SIZE = 16
 
-colors = [color.PURPLE, color.ORANGE, color.BLUE, color.YELLOW, color.CYAN, color.GREEN, color.RED]
+colors = [color.PURPLE, color.ORANGE, color.BLUE, color.YELLOW, color.CYAN, color.GREEN, color.RED, color.LIGHT_GRAY]
 
 
 # derived constants
 FIELD_BACKGROUND_POS = (WIN_SIZE[0] / 2 - (CELL_SIZE * 10 + FIELD_UPPER_MARGIN * 2) / 2, 0)
+FIELD_BACKGROUND_SIZE = (CELL_SIZE * 10 + FIELD_UPPER_MARGIN * 2, WIN_SIZE[1])
 QUEUE_BACKGROUND_POS = (WIN_SIZE[0] / 2 + (CELL_SIZE * 10 + FIELD_UPPER_MARGIN * 2) / 2 + FIELD_UPPER_MARGIN, FIELD_UPPER_MARGIN)
 QUEUE_BACKGROUND_SIZE = (CELL_SIZE * 4 + CELL_GAP + FIELD_UPPER_MARGIN * 2, (CELL_SIZE * 2 + CELL_GAP) * 5 + 6 * FIELD_UPPER_MARGIN)
 HOLD_BACKGROUND_POS  = (WIN_SIZE[0] / 2 - (CELL_SIZE * 10 + FIELD_UPPER_MARGIN * 2) / 2 - FIELD_UPPER_MARGIN - QUEUE_BACKGROUND_SIZE[0], FIELD_UPPER_MARGIN)
@@ -41,7 +42,7 @@ class Gui:
         
         self.background = Background(WIN_SIZE)
         
-        self.grid_background = pygame.Surface((CELL_SIZE * 10 + FIELD_UPPER_MARGIN * 2, WIN_SIZE[1]))
+        self.grid_background = pygame.Surface(FIELD_BACKGROUND_SIZE)
         self.grid_background.set_alpha(FIELD_BACKGROUND_ALPHA)
         self.grid_background.fill((0, 0, 0))
         
@@ -133,7 +134,8 @@ class Gui:
         self.render_queue(queue)
         if hold is not None:
             self.render_hold(hold)
-        self.render_piece(piece)
+        if piece is not None:
+            self.render_piece(piece)
 
         pygame.display.update()
     
