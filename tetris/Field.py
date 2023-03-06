@@ -47,7 +47,7 @@ class Field():
         
         # check for gameover
         if any(state[0]):
-            return None
+            return [-1, False, False]  # None
         
         # check for t-spin
         is_tspin = False
