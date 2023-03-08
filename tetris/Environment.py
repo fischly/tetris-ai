@@ -33,13 +33,19 @@ class TetrisEnv():
         self.last_move_score = 0
         
         
-    def get_next_states(self):
+    def get_next_states(self, use_hold=False):
         '''Returns all possible follow states by placing the current piece at (nearly) all possible positions.'''
-        next_states, next_clears, next_heuristics = self.field.get_follow_states(Piece(self.current_piece))
+        if use_hold and self.hold_piece is None:
+            piece_to_use = self.bag.peek_piece()
+        elif use_hold:
+            piece_to_use = self.hold_piece
+        else:
+            piece_to_use = self.current_piece
+        
+        next_states, next_clears, next_heuristics = self.field.get_follow_states(Piece(piece_to_use))
         # current_states = [self.field.get_current_state() for _ in range(len(next_states))]
-        scores = [SCORING['GAME_OVER'] if clear is None else self._calculate_score(*clear, self.current_combo, self.current_btb) for clear in next_clears]
-        dones = [clear is None for clear in next_clears]
-        queue = []
+        scores = [SCORING['GAME_OVER'] if clear[0] == -1 else self._calculate_score(*clear, self.current_combo, self.current_btb) for clear in next_clears]
+        dones = [clear[0] == -1 for clear in next_clears]
         
         # add environment specific heuristics
         env_heuristics = self.get_heuristics()
@@ -98,6 +104,14 @@ class TetrisEnv():
         self.last_move_lines_cleared = cleared_rows
         self.last_move_score = next_score
         
+        
+    def hold(self):
+        if self.hold_piece is not None:
+            self.current_piece, self.hold_piece = self.hold_piece, self.current_piece
+        else:
+            self.hold_piece = self.current_piece
+            self.current_piece = self.bag.next_piece()
+            
     
     def _calculate_score(self, cleared_lines, t_spin, all_clear, combo, btb):
         """Calculates the score by considering the number of cleared lines, whether a t-spin was performed and the current combo and back-to-back streaks."""
