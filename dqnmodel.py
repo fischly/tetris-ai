@@ -48,17 +48,6 @@ class DQNModel():
             init_linear_layer(nn.Linear(128, 1), 'linear')
         )
         
-        # model = nn.Sequential(
-        #     nn.Flatten(),
-        #     init_linear_layer(nn.Linear(20*10, 128), 'relu'),
-        #     nn.ReLU(),
-        #     init_linear_layer(nn.Linear(128, 64), 'relu'),
-        #     nn.ReLU(),
-        #     init_linear_layer(nn.Linear(64, 32), 'relu'),
-        #     nn.ReLU(),
-        #     init_linear_layer(nn.Linear(32, 1), 'linear')
-        # )
-        
         return model
     
     def update_target(self):
