@@ -145,3 +145,5 @@ dmypy.json
 # models
 models/
 images/
+
+pro-replays/*.json
