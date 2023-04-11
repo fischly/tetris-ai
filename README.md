@@ -1,5 +1,5 @@
-# Tetris AI using a Deep Reinforcement Learning
-This projects implementes a Tetris AI using a double deep Q-learning.
+# Tetris AI using Deep Reinforcement Learning
+This projects implements a Tetris AI using double deep Q-learning.
 
 ## Requirements
 - Current version of Python3 (I used Python 3.10)
@@ -18,7 +18,7 @@ Tested with Ubuntu 22.04.
 
 Clone the project using git.
 
-Extract the file `replays.zip` in the directory `pro-replays` so the all the `.json` files lie directly in the `pro-replays` directory. This is needed since unzipped those files are nearly 250MB in size, while zipped only about 9MB.
+Extract the file `replays.zip` in the directory `pro-replays` so all the `.json` files lie directly in the `pro-replays` directory. This is needed since unzipped those files are nearly 250MB in size, while zipped only about 9MB.
 
 ## Usage
 
